@@ -95,3 +95,58 @@ Stage Summary:
 - All core functionality verified working
 - LLM analysis takes ~15s per scan
 - PDF reports generated as printable HTML with browser print-to-PDF support
+
+---
+Task ID: d1
+Agent: Main
+Task: Create dashboard API with aggregate scan statistics
+
+Work Log:
+- Created /api/dashboard endpoint (lightweight, no LLM, 225ms response)
+- Returns: totalScans, spamCount, aiCount, spamRate, aiRate, avgSpamScore, avgAiConfidence
+- Computes threatDist, sourceDist, scoreBuckets, last7Days timeline, topSenders
+- Created /api/ai-insights endpoint (separate, on-demand LLM call for AI-generated insights)
+- Separated AI insights from dashboard to prevent server crashes from heavy LLM calls
+
+Stage Summary:
+- Dashboard API is fast and reliable (pure DB aggregation)
+- AI insights loaded asynchronously after dashboard renders
+
+---
+Task ID: d2
+Agent: Main
+Task: Build dashboard UI section with charts, metrics, and AI insights
+
+Work Log:
+- Added recharts imports (BarChart, PieChart, AreaChart with ResponsiveContainer)
+- Added DashboardData interface and state management
+- Created KPI cards: Total Analisis, Spam Detectado, Generados por IA, Score Promedio
+- Created AreaChart for 7-day activity timeline (total vs spam)
+- Created donut PieChart for threat type distribution
+- Created BarChart for score distribution (5 buckets: 0-20, 20-40, 40-60, 60-80, 80-100)
+- Created top spam senders list with threat badges
+- Created AI Insights card with gradient background
+- Added empty state with CTA to scan first email
+- Dashboard auto-reloads after each scan completes
+- All charts use theme-aware colors (hsl CSS vars)
+
+Stage Summary:
+- Complete dashboard with 4 KPI cards, 3 charts, top senders list, and AI insights
+- Responsive grid: 2 cols mobile, 4 cols desktop for KPIs; 1-3 cols for charts
+- Dashboard updates automatically after scans
+
+---
+Task ID: d3
+Agent: Main
+Task: Test dashboard end-to-end
+
+Work Log:
+- Verified /api/dashboard returns correct data (2 scans, 1 spam, 1 AI)
+- Dashboard API responds in 225ms (no server crash)
+- Page size increased to 57KB (dashboard section adds ~5KB)
+- No ESLint errors
+- No server errors in logs
+
+Stage Summary:
+- Dashboard fully functional and stable
+- Server stays alive with lightweight dashboard API

@@ -6,6 +6,20 @@ import ReactMarkdown from 'react-markdown'
 import { toast } from 'sonner'
 import { useTheme } from 'next-themes'
 import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip as RechartsTooltip,
+  ResponsiveContainer,
+  PieChart,
+  Pie,
+  Cell,
+  AreaChart,
+  Area,
+} from 'recharts'
+import {
   Card,
   CardContent,
   CardDescription,
@@ -80,6 +94,12 @@ import {
   Bot,
   Phishing,
   UserX,
+  TrendingUp,
+  Activity,
+  PieChart as PieChartIcon,
+  BrainCircuit,
+  Target,
+  Users,
 } from 'lucide-react'
 
 /* ============================================================
@@ -109,6 +129,23 @@ interface HistoryEntry {
   spamScore: number | null
   threatType: string | null
   createdAt: string
+}
+
+interface DashboardData {
+  totalScans: number
+  spamCount: number
+  aiCount: number
+  safeCount: number
+  spamRate: number
+  aiRate: number
+  avgSpamScore: number
+  avgAiConfidence: number
+  threatDist: Record<string, number>
+  sourceDist: Record<string, number>
+  scoreBuckets: number[]
+  last7Days: { date: string; count: number; spam: number }[]
+  topSenders: { sender: string; count: number; avgScore: number; threats: string[] }[]
+  aiInsights: string
 }
 
 /* ============================================================
@@ -213,6 +250,21 @@ function getSourceLabel(source: string): string {
     outlook: 'Outlook',
   }
   return map[source] || source
+}
+
+const THREAT_COLORS = ['#ef4444', '#f97316', '#f59e0b', '#8b5cf6', '#06b6d4', '#10b981']
+const SCORE_BUCKET_COLORS = ['#10b981', '#84cc16', '#f59e0b', '#f97316', '#ef4444']
+
+function getThreatDashLabel(type: string): string {
+  const map: Record<string, string> = {
+    phishing: 'Phishing',
+    voiceship: 'Voiceship/CEO',
+    spoofing: 'Spoofing',
+    malware: 'Malware',
+    social_engineering: 'Ing. Social',
+    none: 'Sin Amenaza',
+  }
+  return map[type] || type
 }
 
 /* ============================================================
@@ -340,14 +392,22 @@ export default function Home() {
   const [selectedHistoryEntry, setSelectedHistoryEntry] = useState<HistoryEntry | null>(null)
   const [showAnalysisDialog, setShowAnalysisDialog] = useState(false)
   const [expandedAnalysis, setExpandedAnalysis] = useState(false)
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null)
+  const [isLoadingDashboard, setIsLoadingDashboard] = useState(false)
 
   // ── Refs ──
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // ── Load history on mount ──
+  // ── Load history and dashboard on mount ──
   useEffect(() => {
     loadHistory()
+    loadDashboard()
   }, [])
+
+  // ── Reload dashboard after each scan ──
+  useEffect(() => {
+    if (scanResult) loadDashboard()
+  }, [scanResult])
 
   // ── API: Load History ──
   const loadHistory = async () => {
@@ -361,6 +421,36 @@ export default function Home() {
       toast.error('No se pudo cargar el historial de análisis')
     } finally {
       setIsLoadingHistory(false)
+    }
+  }
+
+  // ── API: Load Dashboard ──
+  const loadDashboard = async () => {
+    setIsLoadingDashboard(true)
+    try {
+      const res = await fetch('/api/dashboard')
+      if (!res.ok) throw new Error()
+      const data = await res.json()
+      setDashboard(data)
+      // Fetch AI insights separately (non-blocking)
+      if (data.totalScans >= 2 && !data.aiInsights) {
+        fetchAiInsights(data)
+      }
+    } catch {
+      // Silent fail
+    } finally {
+      setIsLoadingDashboard(false)
+    }
+  }
+
+  const fetchAiInsights = async (currentData: DashboardData) => {
+    try {
+      const res = await fetch('/api/ai-insights')
+      if (!res.ok) return
+      const { insights } = await res.json()
+      setDashboard({ ...currentData, aiInsights: insights })
+    } catch {
+      // Non-critical
     }
   }
 
@@ -744,6 +834,370 @@ export default function Home() {
                   </Card>
                 </motion.div>
               ))}
+            </motion.div>
+          </div>
+        </section>
+
+        {/* ============================================================
+            SECTION 2.5: DASHBOARD
+            ============================================================ */}
+        <section id="dashboard-section" className="border-b border-border/50 bg-muted/20">
+          <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
+            <motion.div
+              initial="hidden"
+              whileInView="visible"
+              viewport={{ once: true, margin: '-100px' }}
+              variants={slideUp}
+              className="space-y-6"
+            >
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <h2 className="text-2xl md:text-3xl font-bold tracking-tight flex items-center gap-2">
+                    <BarChart3 className="size-6 text-emerald-400" />
+                    Panel de Control
+                  </h2>
+                  <p className="text-muted-foreground text-sm">
+                    Estadisticas en tiempo actualizadas con IA
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={loadDashboard}
+                  disabled={isLoadingDashboard}
+                  className="gap-2"
+                >
+                  {isLoadingDashboard ? <Loader2 className="size-3.5 animate-spin" /> : <Activity className="size-3.5" />}
+                  Actualizar
+                </Button>
+              </div>
+
+              {isLoadingDashboard && !dashboard ? (
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  {Array.from({ length: 8 }).map((_, i) => (
+                    <Skeleton key={i} className="h-28 rounded-xl" />
+                  ))}
+                </div>
+              ) : dashboard && dashboard.totalScans > 0 ? (
+                <div className="space-y-6">
+                  {/* ── KPI Cards ── */}
+                  <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                    <motion.div variants={fadeIn}>
+                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                        <CardContent className="p-4 sm:p-5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Analisis</span>
+                            <div className="size-8 rounded-lg bg-emerald-500/10 flex items-center justify-center">
+                              <Target className="size-4 text-emerald-400" />
+                            </div>
+                          </div>
+                          <p className="text-2xl sm:text-3xl font-extrabold tabular-nums">{dashboard.totalScans}</p>
+                          <p className="text-xs text-muted-foreground">correos procesados</p>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+
+                    <motion.div variants={fadeIn}>
+                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                        <CardContent className="p-4 sm:p-5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Spam Detectado</span>
+                            <div className="size-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                              <ShieldX className="size-4 text-red-400" />
+                            </div>
+                          </div>
+                          <p className="text-2xl sm:text-3xl font-extrabold tabular-nums text-red-400">{dashboard.spamCount}</p>
+                          <div className="flex items-center gap-2">
+                            <Progress value={dashboard.spamRate} className="h-1.5 flex-1" />
+                            <span className="text-xs font-semibold text-red-400">{dashboard.spamRate}%</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+
+                    <motion.div variants={fadeIn}>
+                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                        <CardContent className="p-4 sm:p-5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Generados por IA</span>
+                            <div className="size-8 rounded-lg bg-violet-500/10 flex items-center justify-center">
+                              <BrainCircuit className="size-4 text-violet-400" />
+                            </div>
+                          </div>
+                          <p className="text-2xl sm:text-3xl font-extrabold tabular-nums text-violet-400">{dashboard.aiCount}</p>
+                          <div className="flex items-center gap-2">
+                            <Progress value={dashboard.aiRate} className="h-1.5 flex-1" />
+                            <span className="text-xs font-semibold text-violet-400">{dashboard.aiRate}%</span>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+
+                    <motion.div variants={fadeIn}>
+                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                        <CardContent className="p-4 sm:p-5 space-y-2">
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Score Promedio</span>
+                            <div className="size-8 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                              <TrendingUp className="size-4 text-amber-400" />
+                            </div>
+                          </div>
+                          <p className="text-2xl sm:text-3xl font-extrabold tabular-nums">{dashboard.avgSpamScore}<span className="text-lg">%</span></p>
+                          <p className="text-xs text-muted-foreground">puntuacion spam promedio</p>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  </div>
+
+                  {/* ── Charts Row ── */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* Activity Timeline - spans 2 cols */}
+                    <motion.div variants={fadeIn} className="lg:col-span-2">
+                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm h-full">
+                        <CardHeader className="pb-2 pt-4 px-4 sm:px-5">
+                          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <Activity className="size-4 text-emerald-400" />
+                            Actividad Ultimos 7 Dias
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-2 sm:px-4 pb-4">
+                          <div className="h-48 sm:h-56">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <AreaChart data={dashboard.last7Days} margin={{ top: 5, right: 10, left: -10, bottom: 0 }}>
+                                <defs>
+                                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                  </linearGradient>
+                                  <linearGradient id="colorSpam" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3} />
+                                    <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                                  </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" />
+                                <YAxis tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
+                                <RechartsTooltip
+                                  contentStyle={{
+                                    backgroundColor: 'hsl(var(--card))',
+                                    border: '1px solid hsl(var(--border))',
+                                    borderRadius: '8px',
+                                    fontSize: '12px',
+                                  }}
+                                />
+                                <Area type="monotone" dataKey="count" stroke="#10b981" fill="url(#colorCount)" strokeWidth={2} name="Total" />
+                                <Area type="monotone" dataKey="spam" stroke="#ef4444" fill="url(#colorSpam)" strokeWidth={2} name="Spam" />
+                              </AreaChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+
+                    {/* Threat Distribution Pie */}
+                    <motion.div variants={fadeIn}>
+                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm h-full">
+                        <CardHeader className="pb-2 pt-4 px-4 sm:px-5">
+                          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <PieChartIcon className="size-4 text-emerald-400" />
+                            Tipos de Amenaza
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pb-4">
+                          {Object.keys(dashboard.threatDist).filter(k => k !== 'none').length > 0 ? (
+                            <div className="h-48 sm:h-56">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={Object.entries(dashboard.threatDist)
+                                      .filter(([, v]) => v > 0)
+                                      .map(([k, v]) => ({ name: getThreatDashLabel(k), value: v }))}
+                                    cx="50%"
+                                    cy="50%"
+                                    innerRadius={40}
+                                    outerRadius={70}
+                                    paddingAngle={3}
+                                    dataKey="value"
+                                  >
+                                    {THREAT_COLORS.map((color, i) => (
+                                      <Cell key={i} fill={color} />
+                                    ))}
+                                  </Pie>
+                                  <RechartsTooltip
+                                    contentStyle={{
+                                      backgroundColor: 'hsl(var(--card))',
+                                      border: '1px solid hsl(var(--border))',
+                                      borderRadius: '8px',
+                                      fontSize: '12px',
+                                    }}
+                                  />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          ) : (
+                            <div className="h-48 sm:h-56 flex items-center justify-center text-center">
+                              <div className="space-y-2">
+                                <CheckCircle className="size-8 text-emerald-400 mx-auto" />
+                                <p className="text-xs text-muted-foreground">Sin amenazas detectadas</p>
+                              </div>
+                            </div>
+                          )}
+                          {/* Legend */}
+                          <div className="mt-3 space-y-1.5 px-1">
+                            {Object.entries(dashboard.threatDist)
+                              .filter(([, v]) => v > 0)
+                              .slice(0, 4)
+                              .map(([k, v], i) => (
+                                <div key={k} className="flex items-center justify-between text-xs">
+                                  <div className="flex items-center gap-2">
+                                    <div className="size-2.5 rounded-full" style={{ backgroundColor: THREAT_COLORS[i % THREAT_COLORS.length] }} />
+                                    <span className="text-muted-foreground">{getThreatDashLabel(k)}</span>
+                                  </div>
+                                  <span className="font-semibold">{v}</span>
+                                </div>
+                              ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  </div>
+
+                  {/* ── Bottom Row: Score Distribution + Top Senders + AI Insights ── */}
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                    {/* Score Distribution */}
+                    <motion.div variants={fadeIn}>
+                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                        <CardHeader className="pb-2 pt-4 px-4 sm:px-5">
+                          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <BarChart3 className="size-4 text-emerald-400" />
+                            Distribucion de Scores
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pb-4">
+                          <div className="h-40">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <BarChart
+                                data={[
+                                  { rango: '0-20', cantidad: dashboard.scoreBuckets[0] },
+                                  { rango: '20-40', cantidad: dashboard.scoreBuckets[1] },
+                                  { rango: '40-60', cantidad: dashboard.scoreBuckets[2] },
+                                  { rango: '60-80', cantidad: dashboard.scoreBuckets[3] },
+                                  { rango: '80-100', cantidad: dashboard.scoreBuckets[4] },
+                                ]}
+                                margin={{ top: 5, right: 5, left: -10, bottom: 0 }}
+                              >
+                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                <XAxis dataKey="rango" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+                                <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" allowDecimals={false} />
+                                <RechartsTooltip
+                                  contentStyle={{
+                                    backgroundColor: 'hsl(var(--card))',
+                                    border: '1px solid hsl(var(--border))',
+                                    borderRadius: '8px',
+                                    fontSize: '12px',
+                                  }}
+                                />
+                                <Bar dataKey="cantidad" radius={[4, 4, 0, 0]}>
+                                  {SCORE_BUCKET_COLORS.map((color, i) => (
+                                    <Cell key={i} fill={color} />
+                                  ))}
+                                </Bar>
+                              </BarChart>
+                            </ResponsiveContainer>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+
+                    {/* Top Spam Senders */}
+                    <motion.div variants={fadeIn}>
+                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                        <CardHeader className="pb-2 pt-4 px-4 sm:px-5">
+                          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <Users className="size-4 text-red-400" />
+                            Principales Remitentes Spam
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="pb-4">
+                          {dashboard.topSenders.length > 0 ? (
+                            <div className="space-y-3">
+                              {dashboard.topSenders.slice(0, 4).map((s, i) => (
+                                <div key={i} className="flex items-center gap-3">
+                                  <div className="flex items-center justify-center size-6 rounded-full bg-red-500/10 text-red-400 text-xs font-bold">
+                                    {i + 1}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-xs font-medium truncate">{s.sender}</p>
+                                    <p className="text-[10px] text-muted-foreground">
+                                      {s.threats.map(t => getThreatDashLabel(t)).join(', ')}
+                                    </p>
+                                  </div>
+                                  <Badge variant="outline" className="text-[10px] border-red-500/30 text-red-400">
+                                    {s.avgScore}%
+                                  </Badge>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="h-40 flex items-center justify-center">
+                              <div className="text-center space-y-2">
+                                <CheckCircle className="size-6 text-emerald-400 mx-auto" />
+                                <p className="text-xs text-muted-foreground">Sin remitentes spam</p>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+
+                    {/* AI Insights */}
+                    <motion.div variants={fadeIn}>
+                      <Card className="border-border/50 bg-gradient-to-br from-violet-500/5 to-emerald-500/5 backdrop-blur-sm h-full">
+                        <CardHeader className="pb-2 pt-4 px-4 sm:px-5">
+                          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                            <Brain className="size-4 text-violet-400" />
+                            Insights de IA
+                          </CardTitle>
+                          <CardDescription className="text-xs">Analisis inteligente de tus datos</CardDescription>
+                        </CardHeader>
+                        <CardContent className="pb-4">
+                          {dashboard.aiInsights ? (
+                            <div className="text-xs leading-relaxed text-muted-foreground whitespace-pre-line">
+                              {dashboard.aiInsights}
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <Skeleton className="h-3 w-full" />
+                              <Skeleton className="h-3 w-5/6" />
+                              <Skeleton className="h-3 w-4/6" />
+                              <p className="text-[10px] text-muted-foreground pt-2">Generando insights con IA...</p>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    </motion.div>
+                  </div>
+                </div>
+              ) : (
+                <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                  <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-3">
+                    <div className="flex items-center justify-center size-16 rounded-full bg-muted/50">
+                      <BarChart3 className="size-8 text-muted-foreground/50" />
+                    </div>
+                    <p className="text-sm text-muted-foreground">No hay datos para mostrar</p>
+                    <p className="text-xs text-muted-foreground">Los datos del dashboard apareceran despues de analizar correos</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-2 gap-2"
+                      onClick={() => document.getElementById('scanner-section')?.scrollIntoView({ behavior: 'smooth' })}
+                    >
+                      <Scan className="size-3.5" />
+                      Analizar Primer Correo
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
             </motion.div>
           </div>
         </section>
