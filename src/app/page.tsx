@@ -636,11 +636,11 @@ export default function Home() {
      ============================================================ */
 
   return (
-    <div className="min-h-screen flex flex-col bg-background text-foreground">
+    <div className="min-h-screen flex flex-col text-foreground">
       {/* ============================================================
           SECTION 1: HEADER
           ============================================================ */}
-      <header className="sticky top-0 z-50 border-b border-border/50 bg-gradient-to-r from-background via-background to-emerald-950/20 dark:from-zinc-950 dark:via-zinc-950 dark:to-emerald-950/30 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-emerald-100 dark:border-border/50 bg-white/70 dark:bg-gradient-to-r dark:from-zinc-950 dark:via-zinc-950 dark:to-emerald-950/30 backdrop-blur-xl">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16 md:h-18">
             {/* Logo & Name */}
@@ -710,12 +710,12 @@ export default function Home() {
         {/* ============================================================
             SECTION 2: HERO
             ============================================================ */}
-        <section className="relative overflow-hidden border-b border-border/50">
+        <section className="relative overflow-hidden border-b border-emerald-100 dark:border-border/50">
           {/* Background decorative elements */}
           <div className="absolute inset-0 overflow-hidden pointer-events-none">
-            <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-emerald-500/5 blur-3xl" />
-            <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-emerald-500/3 blur-3xl" />
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-emerald-500/2 blur-3xl" />
+            <div className="absolute -top-40 -right-40 w-96 h-96 rounded-full bg-emerald-500/8 blur-3xl" />
+            <div className="absolute -bottom-40 -left-40 w-96 h-96 rounded-full bg-emerald-400/5 blur-3xl" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] rounded-full bg-emerald-300/4 blur-3xl" />
           </div>
 
           <div className="container relative mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24">
@@ -820,7 +820,7 @@ export default function Home() {
               ].map((feature) => (
                 <motion.div key={feature.title} variants={fadeIn}>
                   <Card
-                    className={`group relative overflow-hidden border ${feature.border} bg-card/50 backdrop-blur-sm hover:bg-card/80 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5`}
+                    className={`group relative overflow-hidden border ${feature.border} bg-white/80 dark:bg-card/50 backdrop-blur-sm hover:bg-white dark:hover:bg-card/80 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/10 dark:hover:shadow-emerald-500/5`}
                   >
                     <CardContent className="p-5 space-y-3">
                       <div
@@ -841,7 +841,7 @@ export default function Home() {
         {/* ============================================================
             SECTION 2.5: DASHBOARD
             ============================================================ */}
-        <section id="dashboard-section" className="border-b border-border/50 bg-muted/20">
+        <section id="dashboard-section" className="border-b border-emerald-100 dark:border-border/50 bg-white/40 dark:bg-muted/20">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
             <motion.div
               initial="hidden"
@@ -883,7 +883,7 @@ export default function Home() {
                   {/* ── KPI Cards ── */}
                   <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
                     <motion.div variants={fadeIn}>
-                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                      <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                         <CardContent className="p-4 sm:p-5 space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Analisis</span>
@@ -898,7 +898,7 @@ export default function Home() {
                     </motion.div>
 
                     <motion.div variants={fadeIn}>
-                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                      <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                         <CardContent className="p-4 sm:p-5 space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Spam Detectado</span>
@@ -916,7 +916,7 @@ export default function Home() {
                     </motion.div>
 
                     <motion.div variants={fadeIn}>
-                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                      <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                         <CardContent className="p-4 sm:p-5 space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Generados por IA</span>
@@ -934,7 +934,7 @@ export default function Home() {
                     </motion.div>
 
                     <motion.div variants={fadeIn}>
-                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                      <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                         <CardContent className="p-4 sm:p-5 space-y-2">
                           <div className="flex items-center justify-between">
                             <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Score Promedio</span>
@@ -953,7 +953,7 @@ export default function Home() {
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* Activity Timeline - spans 2 cols */}
                     <motion.div variants={fadeIn} className="lg:col-span-2">
-                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm h-full">
+                      <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm h-full">
                         <CardHeader className="pb-2 pt-4 px-4 sm:px-5">
                           <CardTitle className="text-sm font-semibold flex items-center gap-2">
                             <Activity className="size-4 text-emerald-400" />
@@ -996,7 +996,7 @@ export default function Home() {
 
                     {/* Threat Distribution Pie */}
                     <motion.div variants={fadeIn}>
-                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm h-full">
+                      <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm h-full">
                         <CardHeader className="pb-2 pt-4 px-4 sm:px-5">
                           <CardTitle className="text-sm font-semibold flex items-center gap-2">
                             <PieChartIcon className="size-4 text-emerald-400" />
@@ -1066,7 +1066,7 @@ export default function Home() {
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
                     {/* Score Distribution */}
                     <motion.div variants={fadeIn}>
-                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                      <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                         <CardHeader className="pb-2 pt-4 px-4 sm:px-5">
                           <CardTitle className="text-sm font-semibold flex items-center gap-2">
                             <BarChart3 className="size-4 text-emerald-400" />
@@ -1111,7 +1111,7 @@ export default function Home() {
 
                     {/* Top Spam Senders */}
                     <motion.div variants={fadeIn}>
-                      <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                      <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                         <CardHeader className="pb-2 pt-4 px-4 sm:px-5">
                           <CardTitle className="text-sm font-semibold flex items-center gap-2">
                             <Users className="size-4 text-red-400" />
@@ -1179,7 +1179,7 @@ export default function Home() {
                   </div>
                 </div>
               ) : (
-                <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                   <CardContent className="flex flex-col items-center justify-center py-16 text-center space-y-3">
                     <div className="flex items-center justify-center size-16 rounded-full bg-muted/50">
                       <BarChart3 className="size-8 text-muted-foreground/50" />
@@ -1205,7 +1205,7 @@ export default function Home() {
         {/* ============================================================
             SECTION 3: SCANNER
             ============================================================ */}
-        <section id="scanner-section" className="border-b border-border/50">
+        <section id="scanner-section" className="border-b border-emerald-100 dark:border-border/50">
           <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: '-100px' }} variants={slideUp} className="space-y-6">
               <div className="text-center space-y-2">
@@ -1238,7 +1238,7 @@ export default function Home() {
 
                 {/* ── Tab 1: Text Analysis ── */}
                 <TabsContent value="texto" className="mt-4">
-                  <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                  <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-lg">
                         <FileText className="size-5 text-emerald-400" />
@@ -1285,7 +1285,7 @@ export default function Home() {
 
                 {/* ── Tab 2: File Upload ── */}
                 <TabsContent value="archivo" className="mt-4">
-                  <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                  <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2 text-lg">
                         <Upload className="size-5 text-emerald-400" />
@@ -1387,7 +1387,7 @@ export default function Home() {
                 <TabsContent value="bandeja" className="mt-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     {/* Gmail */}
-                    <Card className="border-border/50 bg-card/50 backdrop-blur-sm group hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300">
+                    <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm group hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300">
                       <CardHeader className="text-center">
                         <div className="flex justify-center mb-3">
                           <div className="flex items-center justify-center size-16 rounded-2xl bg-red-500/10 border border-red-500/20">
@@ -1415,7 +1415,7 @@ export default function Home() {
                     </Card>
 
                     {/* Outlook */}
-                    <Card className="border-border/50 bg-card/50 backdrop-blur-sm group hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300">
+                    <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm group hover:shadow-lg hover:shadow-emerald-500/5 transition-all duration-300">
                       <CardHeader className="text-center">
                         <div className="flex justify-center mb-3">
                           <div className="flex items-center justify-center size-16 rounded-2xl bg-sky-500/10 border border-sky-500/20">
@@ -1459,7 +1459,7 @@ export default function Home() {
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
               transition={{ duration: 0.5 }}
-              className="border-b border-border/50 overflow-hidden"
+              className="border-b border-emerald-100 dark:border-border/50 overflow-hidden"
             >
               <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-12 md:py-16">
                 <motion.div
@@ -1485,7 +1485,7 @@ export default function Home() {
                       <div className="flex flex-col lg:flex-row gap-6">
                         {/* Threat Gauge */}
                         <motion.div variants={scaleIn} className="shrink-0">
-                          <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                          <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                             <CardContent className="p-6">
                               <ThreatGauge score={scanResult.spamScore} />
                             </CardContent>
@@ -1495,7 +1495,7 @@ export default function Home() {
                         {/* Summary Cards Grid */}
                         <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <motion.div variants={fadeIn}>
-                            <Card className="border-border/50 bg-card/50 backdrop-blur-sm h-full">
+                            <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm h-full">
                               <CardContent className="p-4 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
@@ -1519,7 +1519,7 @@ export default function Home() {
                           </motion.div>
 
                           <motion.div variants={fadeIn}>
-                            <Card className="border-border/50 bg-card/50 backdrop-blur-sm h-full">
+                            <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm h-full">
                               <CardContent className="p-4 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
@@ -1541,7 +1541,7 @@ export default function Home() {
                           </motion.div>
 
                           <motion.div variants={fadeIn}>
-                            <Card className="border-border/50 bg-card/50 backdrop-blur-sm h-full">
+                            <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm h-full">
                               <CardContent className="p-4 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
@@ -1567,7 +1567,7 @@ export default function Home() {
                           </motion.div>
 
                           <motion.div variants={fadeIn}>
-                            <Card className="border-border/50 bg-card/50 backdrop-blur-sm h-full">
+                            <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm h-full">
                               <CardContent className="p-4 space-y-2">
                                 <div className="flex items-center justify-between">
                                   <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">
@@ -1598,7 +1598,7 @@ export default function Home() {
 
                       {/* Summary */}
                       <motion.div variants={fadeIn}>
-                        <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                        <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                           <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
                               <Eye className="size-5 text-emerald-400" />
@@ -1615,7 +1615,7 @@ export default function Home() {
 
                       {/* Sender Analysis */}
                       <motion.div variants={fadeIn}>
-                        <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                        <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                           <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
                               <ShieldCheck className="size-5 text-emerald-400" />
@@ -1632,7 +1632,7 @@ export default function Home() {
 
                       {/* Detailed Analysis (Collapsible with ReactMarkdown) */}
                       <motion.div variants={fadeIn}>
-                        <Card className="border-border/50 bg-card/50 backdrop-blur-sm">
+                        <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
                           <CardHeader>
                             <CardTitle className="flex items-center gap-2 text-lg">
                               <BarChart3 className="size-5 text-emerald-400" />
@@ -1753,7 +1753,7 @@ export default function Home() {
                 </Button>
               </div>
 
-              <Card className="border-border/50 bg-card/50 backdrop-blur-sm overflow-hidden">
+              <Card className="border-emerald-100 dark:border-border/50 bg-white/80 dark:bg-card/50 backdrop-blur-sm overflow-hidden">
                 <CardContent className="p-0">
                   {isLoadingHistory ? (
                     <div className="p-6 space-y-4">
@@ -1920,7 +1920,7 @@ export default function Home() {
       {/* ============================================================
           SECTION 6: FOOTER
           ============================================================ */}
-      <footer className="mt-auto border-t border-border/50 bg-muted/30 backdrop-blur-sm">
+      <footer className="mt-auto border-t border-emerald-100 dark:border-border/50 bg-white/60 dark:bg-muted/30 backdrop-blur-sm">
         <div className="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
             {/* Left: Logo */}

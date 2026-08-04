@@ -120,3 +120,21 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ── Soft white gradient background ── */
+html:not(.dark) body,
+html:not(.dark) .min-h-screen {
+  background: linear-gradient(
+    175deg,
+    #ffffff 0%,
+    #f8fafb 20%,
+    #f0f4f3 45%,
+    #f5f7f6 70%,
+    #fafbfc 100%
+  );
+  background-attachment: fixed;
+}
+
+html:not(.dark) .min-h-screen {
+  min-height: 100vh;
+}
