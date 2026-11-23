@@ -62,6 +62,16 @@ import {
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import {
   Shield,
   Upload,
@@ -104,6 +114,14 @@ import {
   ExternalLink,
   Scale,
   Building2,
+  Gavel,
+  Stamp,
+  FileCheck2,
+  Landmark,
+  BadgeCheck,
+  ChevronRight,
+  ChevronLeft,
+  ShieldCheck,
 } from 'lucide-react'
 
 /* ============================================================
@@ -435,6 +453,23 @@ export default function Home() {
   const [showPrivacyDialog, setShowPrivacyDialog] = useState(false)
   // ── Estado de eliminacion en historial ──
   const [deletingScanId, setDeletingScanId] = useState<string | null>(null)
+  // ── Informe Oficial de Denuncia ──
+  const [showOfficialDialog, setShowOfficialDialog] = useState(false)
+  const [officialStep, setOfficialStep] = useState(1)
+  const [isGeneratingOfficial, setIsGeneratingOfficial] = useState(false)
+  const [officialReportData, setOfficialReportData] = useState({
+    nombre: '',
+    rut: '',
+    nacionalidad: 'Chilena',
+    domicilio: '',
+    telefono: '',
+    email: '',
+    relacion: 'Victima',
+    autoridad: 'pdi' as 'pdi' | 'carabineros' | 'anci' | 'fiscalia' | 'todas',
+    firmaDigital: '',
+    fecha: new Date().toISOString().split('T')[0],
+    aceptaDeclaracion: false,
+  })
 
   // ── Refs ──
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -612,6 +647,147 @@ export default function Home() {
       }
     } catch {
       toast.error('Error al generar el informe')
+    }
+  }
+
+  // ── API: Generate Official Complaint Report ──
+  const formatRUTInput = (raw: string) => {
+    // Limpia todo lo que no sea dígito o K/k al final
+    const cleaned = raw
+      .toUpperCase()
+      .replace(/[^0-9K]/g, '')
+      .replace(/(?!^)K/g, '')
+    if (cleaned.length <= 1) return cleaned
+    const body = cleaned.slice(0, -1)
+    const dv = cleaned.slice(-1)
+    // Formatea el cuerpo con puntos: 12.345.678
+    let formatted = ''
+    for (let i = 0; i < body.length; i++) {
+      if (i > 0 && (body.length - i) % 3 === 0) formatted += '.'
+      formatted += body[i]
+    }
+    return `${formatted}-${dv}`
+  }
+
+  const isValidRUT = (rut: string) => {
+    const match = rut.match(/^(\d{1,3}(?:\.\d{3})*)-([\dK])$/)
+    if (!match) return false
+    const body = match[1].replace(/\./g, '')
+    const dv = match[2]
+    // Validación módulo 11
+    let sum = 0
+    let factor = 2
+    for (let i = body.length - 1; i >= 0; i--) {
+      sum += parseInt(body[i], 10) * factor
+      factor = factor === 7 ? 2 : factor + 1
+    }
+    const mod = 11 - (sum % 11)
+    const computed =
+      mod === 11 ? '0' : mod === 10 ? 'K' : String(mod)
+    return computed === dv.toUpperCase()
+  }
+
+  const isValidEmail = (email: string) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+
+  const officialStep1Valid =
+    officialReportData.nombre.trim().length >= 4 &&
+    isValidRUT(officialReportData.rut) &&
+    officialReportData.domicilio.trim().length >= 8 &&
+    officialReportData.telefono.trim().length >= 6 &&
+    isValidEmail(officialReportData.email)
+
+  const officialStep3Valid =
+    officialReportData.aceptaDeclaracion &&
+    officialReportData.firmaDigital.trim().length >= 4 &&
+    officialReportData.fecha.trim().length > 0
+
+  const handleGenerateOfficialReport = async () => {
+    if (!scanResult?.id) {
+      toast.error('No hay resultados para generar el informe oficial')
+      return
+    }
+
+    // Validación final
+    if (!officialStep1Valid) {
+      toast.error('Completa correctamente los datos del denunciante', {
+        description: 'Verifica nombre, RUT (con dígito verificador válido), domicilio, teléfono y email.',
+      })
+      setOfficialStep(1)
+      return
+    }
+    if (!officialStep3Valid) {
+      toast.error('Debes aceptar la declaración y firmar digitalmente')
+      setOfficialStep(3)
+      return
+    }
+
+    setIsGeneratingOfficial(true)
+    toast.info('Generando informe oficial de denuncia...', {
+      description: 'Se generará el documento con tu número de caso y firma digital.',
+    })
+
+    try {
+      const res = await fetch('/api/generate-official-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scanId: scanResult.id,
+          denunciante: {
+            nombre: officialReportData.nombre,
+            rut: officialReportData.rut,
+            nacionalidad: officialReportData.nacionalidad,
+            domicilio: officialReportData.domicilio,
+            telefono: officialReportData.telefono,
+            email: officialReportData.email,
+            relacion: officialReportData.relacion,
+          },
+          autoridad: officialReportData.autoridad,
+          firmaDigital: officialReportData.firmaDigital,
+          fecha: officialReportData.fecha,
+          aceptaDeclaracion: officialReportData.aceptaDeclaracion,
+        }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Error al generar el informe oficial')
+      }
+
+      const htmlContent = await res.text()
+      const blob = new Blob([htmlContent], { type: 'text/html' })
+      const url = URL.createObjectURL(blob)
+      const printWindow = window.open(url, '_blank')
+      if (printWindow) {
+        printWindow.addEventListener('load', () => {
+          toast.success('Informe oficial generado exitosamente', {
+            description: 'Revisa el documento abierto y usa "Imprimir / Guardar como PDF".',
+          })
+        })
+      } else {
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `SpamShield-Denuncia-Oficial.html`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+        toast.success('Informe oficial descargado', {
+          description: 'Ábrelo y usa "Imprimir > Guardar como PDF" para imprimirlo.',
+        })
+      }
+
+      // Cerrar y resetear el diálogo
+      setShowOfficialDialog(false)
+      setOfficialStep(1)
+    } catch (error) {
+      toast.error(
+        error instanceof Error
+          ? error.message
+          : 'Error al generar el informe oficial'
+      )
+    } finally {
+      setIsGeneratingOfficial(false)
     }
   }
 
@@ -1927,6 +2103,16 @@ export default function Home() {
                           Descargar Informe PDF
                         </Button>
                         <Button
+                          onClick={() => {
+                            setOfficialStep(1)
+                            setShowOfficialDialog(true)
+                          }}
+                          className="bg-emerald-700 hover:bg-emerald-600 text-white gap-2 shadow-lg shadow-emerald-700/20 border border-emerald-500/40"
+                        >
+                          <ShieldCheck className="size-4" />
+                          Generar Informe Oficial de Denuncia
+                        </Button>
+                        <Button
                           variant="outline"
                           onClick={() => {
                             setShowResults(false)
@@ -2402,6 +2588,693 @@ export default function Home() {
                 Última actualización: {new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}
               </p>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ============================================================
+          OFFICIAL COMPLAINT REPORT MODAL
+          Informe Oficial de Denuncia con Acuerdo de Responsabilidad
+          ============================================================ */}
+      <Dialog
+        open={showOfficialDialog}
+        onOpenChange={(open) => {
+          if (!isGeneratingOfficial) {
+            setShowOfficialDialog(open)
+            if (!open) setOfficialStep(1)
+          }
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <ShieldCheck className="size-5 text-emerald-600" />
+              Informe Oficial de Denuncia
+            </DialogTitle>
+            <DialogDescription>
+              Genera un documento formal con declaración jurada para presentar ante
+              PDI, Carabineros, ANCI o Fiscalía de Chile.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Stepper */}
+          <div className="flex items-center justify-between gap-1 px-1 pb-2">
+            {[1, 2, 3, 4].map((s) => (
+              <div key={s} className="flex items-center gap-2 flex-1">
+                <div
+                  className={`flex size-7 shrink-0 items-center justify-center rounded-full text-xs font-bold transition-colors ${
+                    officialStep >= s
+                      ? 'bg-emerald-600 text-white'
+                      : 'bg-muted text-muted-foreground'
+                  }`}
+                >
+                  {s}
+                </div>
+                <span
+                  className={`text-xs hidden sm:inline ${
+                    officialStep >= s
+                      ? 'text-emerald-700 dark:text-emerald-400 font-medium'
+                      : 'text-muted-foreground'
+                  }`}
+                >
+                  {s === 1 && 'Denunciante'}
+                  {s === 2 && 'Autoridad'}
+                  {s === 3 && 'Declaración'}
+                  {s === 4 && 'Generar'}
+                </span>
+                {s < 4 && (
+                  <div
+                    className={`h-px flex-1 ${
+                      officialStep > s ? 'bg-emerald-500' : 'bg-border'
+                    }`}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-2">
+            <AnimatePresence mode="wait">
+              {/* ============ STEP 1: DATOS DEL DENUNCIANTE ============ */}
+              {officialStep === 1 && (
+                <motion.div
+                  key="step1"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-4"
+                >
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    <FileCheck2 className="size-4" />
+                    Datos del Denunciante
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="off-nombre">
+                        Nombre completo <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="off-nombre"
+                        value={officialReportData.nombre}
+                        onChange={(e) =>
+                          setOfficialReportData((p) => ({
+                            ...p,
+                            nombre: e.target.value,
+                          }))
+                        }
+                        placeholder="Ej: María José González Pérez"
+                        aria-required="true"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="off-rut">
+                        RUT <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="off-rut"
+                        value={officialReportData.rut}
+                        onChange={(e) =>
+                          setOfficialReportData((p) => ({
+                            ...p,
+                            rut: formatRUTInput(e.target.value),
+                          }))
+                        }
+                        placeholder="12.345.678-9"
+                        className="font-mono"
+                        aria-required="true"
+                        aria-invalid={
+                          officialReportData.rut.length > 0 &&
+                          !isValidRUT(officialReportData.rut)
+                        }
+                      />
+                      {officialReportData.rut.length > 0 &&
+                        !isValidRUT(officialReportData.rut) && (
+                          <p className="text-xs text-red-500">
+                            RUT inválido (verifica el dígito verificador)
+                          </p>
+                        )}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="off-nacionalidad">Nacionalidad</Label>
+                      <Select
+                        value={officialReportData.nacionalidad}
+                        onValueChange={(v) =>
+                          setOfficialReportData((p) => ({
+                            ...p,
+                            nacionalidad: v,
+                          }))
+                        }
+                      >
+                        <SelectTrigger id="off-nacionalidad" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Chilena">Chilena</SelectItem>
+                          <SelectItem value="Argentina">Argentina</SelectItem>
+                          <SelectItem value="Peruana">Peruana</SelectItem>
+                          <SelectItem value="Boliviana">Boliviana</SelectItem>
+                          <SelectItem value="Colombiana">Colombiana</SelectItem>
+                          <SelectItem value="Venezolana">Venezolana</SelectItem>
+                          <SelectItem value="Ecuatoriana">Ecuatoriana</SelectItem>
+                          <SelectItem value="Uruguaya">Uruguaya</SelectItem>
+                          <SelectItem value="Otra">Otra</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="off-domicilio">
+                        Domicilio <span className="text-red-500">*</span>
+                      </Label>
+                      <Textarea
+                        id="off-domicilio"
+                        value={officialReportData.domicilio}
+                        onChange={(e) =>
+                          setOfficialReportData((p) => ({
+                            ...p,
+                            domicilio: e.target.value,
+                          }))
+                        }
+                        placeholder="Calle, número, comuna, ciudad"
+                        rows={2}
+                        aria-required="true"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="off-telefono">
+                        Teléfono <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="off-telefono"
+                        value={officialReportData.telefono}
+                        onChange={(e) =>
+                          setOfficialReportData((p) => ({
+                            ...p,
+                            telefono: e.target.value,
+                          }))
+                        }
+                        placeholder="+56 9 1234 5678"
+                        aria-required="true"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="off-email">
+                        Email <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="off-email"
+                        type="email"
+                        value={officialReportData.email}
+                        onChange={(e) =>
+                          setOfficialReportData((p) => ({
+                            ...p,
+                            email: e.target.value,
+                          }))
+                        }
+                        placeholder="tu@correo.cl"
+                        aria-required="true"
+                        aria-invalid={
+                          officialReportData.email.length > 0 &&
+                          !isValidEmail(officialReportData.email)
+                        }
+                      />
+                      {officialReportData.email.length > 0 &&
+                        !isValidEmail(officialReportData.email) && (
+                          <p className="text-xs text-red-500">
+                            Email inválido
+                          </p>
+                        )}
+                    </div>
+                    <div className="space-y-1.5 sm:col-span-2">
+                      <Label htmlFor="off-relacion">
+                        Relación con el incidente
+                      </Label>
+                      <Select
+                        value={officialReportData.relacion}
+                        onValueChange={(v) =>
+                          setOfficialReportData((p) => ({
+                            ...p,
+                            relacion: v,
+                          }))
+                        }
+                      >
+                        <SelectTrigger id="off-relacion" className="w-full">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Victima">Víctima</SelectItem>
+                          <SelectItem value="Testigo">Testigo</SelectItem>
+                          <SelectItem value="Representante">
+                            Representante legal
+                          </SelectItem>
+                          <SelectItem value="Tercero">Tercero</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between pt-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setShowOfficialDialog(false)}
+                      disabled={isGeneratingOfficial}
+                    >
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={() => setOfficialStep(2)}
+                      disabled={!officialStep1Valid}
+                      className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                    >
+                      Siguiente
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ============ STEP 2: AUTORIDAD DESTINATARIA ============ */}
+              {officialStep === 2 && (
+                <motion.div
+                  key="step2"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-4"
+                >
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    <Landmark className="size-4" />
+                    Autoridad Destinataria
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Selecciona la autoridad ante la cual presentarás la denuncia.
+                    Cada una tiene competencias específicas según el tipo de incidente.
+                  </p>
+                  <RadioGroup
+                    value={officialReportData.autoridad}
+                    onValueChange={(v) =>
+                      setOfficialReportData((p) => ({
+                        ...p,
+                        autoridad: v as typeof officialReportData.autoridad,
+                      }))
+                    }
+                    className="gap-2"
+                  >
+                    {[
+                      {
+                        value: 'pdi',
+                        title: 'PDI — BRICIB',
+                        desc: 'Brigada de Delitos Cibernéticos. Para cibercrimen, phishing y fraude electrónico.',
+                        icon: ShieldAlert,
+                      },
+                      {
+                        value: 'carabineros',
+                        title: 'Carabineros de Chile',
+                        desc: 'Para delitos generales y situaciones de peligro inminente. Emergencias: 133.',
+                        icon: Shield,
+                      },
+                      {
+                        value: 'anci',
+                        title: 'ANCI / CSIRT Nacional',
+                        desc: 'Agencia Nacional de Ciberseguridad. Para incidentes de ciberseguridad.',
+                        icon: Globe,
+                      },
+                      {
+                        value: 'fiscalia',
+                        title: 'Fiscalía de Chile',
+                        desc: 'Ministerio Público. Para denuncias penales formales (Ley 21.459).',
+                        icon: Scale,
+                      },
+                      {
+                        value: 'todas',
+                        title: 'Todas las anteriores',
+                        desc: 'Genera un documento universal aplicable para todas las autoridades.',
+                        icon: BadgeCheck,
+                      },
+                    ].map((opt) => {
+                      const Icon = opt.icon
+                      const isActive = officialReportData.autoridad === opt.value
+                      return (
+                        <Label
+                          key={opt.value}
+                          htmlFor={`auth-${opt.value}`}
+                          className={`flex items-start gap-3 rounded-lg border p-3 cursor-pointer transition-all ${
+                            isActive
+                              ? 'border-emerald-500 bg-emerald-500/5 ring-1 ring-emerald-500/30'
+                              : 'border-border hover:border-emerald-500/50'
+                          }`}
+                        >
+                          <RadioGroupItem
+                            id={`auth-${opt.value}`}
+                            value={opt.value}
+                            className="mt-1"
+                          />
+                          <div className="flex items-start gap-2 flex-1">
+                            <Icon
+                              className={`size-4 mt-0.5 ${
+                                isActive
+                                  ? 'text-emerald-600'
+                                  : 'text-muted-foreground'
+                              }`}
+                            />
+                            <div className="space-y-0.5">
+                              <p className="text-sm font-medium text-foreground">
+                                {opt.title}
+                              </p>
+                              <p className="text-xs text-muted-foreground leading-relaxed">
+                                {opt.desc}
+                              </p>
+                            </div>
+                          </div>
+                        </Label>
+                      )
+                    })}
+                  </RadioGroup>
+
+                  <div className="flex justify-between pt-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setOfficialStep(1)}
+                      disabled={isGeneratingOfficial}
+                      className="gap-2"
+                    >
+                      <ChevronLeft className="size-4" />
+                      Atrás
+                    </Button>
+                    <Button
+                      onClick={() => setOfficialStep(3)}
+                      className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                    >
+                      Siguiente
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ============ STEP 3: DECLARACIÓN JURADA ============ */}
+              {officialStep === 3 && (
+                <motion.div
+                  key="step3"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-4"
+                >
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    <Gavel className="size-4" />
+                    Declaración Jurada y Acuerdo de Responsabilidad
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 text-xs leading-relaxed text-foreground">
+                    <p className="font-bold text-emerald-700 dark:text-emerald-400 mb-2">
+                      DECLARACIÓN JURADA DE RESPONSABILIDAD
+                    </p>
+                    <p className="mb-3">
+                      Yo,{' '}
+                      <strong>
+                        {officialReportData.nombre || '[NOMBRE]'}
+                      </strong>
+                      , RUT{' '}
+                      <strong className="font-mono">
+                        {officialReportData.rut || '[RUT]'}
+                      </strong>
+                      , bajo declaración solemne y con conocimiento de las penas
+                      establecidas en el Artículo 210 del Código Penal de Chile por
+                      falsas declaraciones ante autoridad, declaro que:
+                    </p>
+                    <ol className="list-decimal pl-4 space-y-1.5">
+                      <li>
+                        La información contenida en este informe es verídica y
+                        corresponde a un correo electrónico que recibí o tuve acceso
+                        legítimo.
+                      </li>
+                      <li>
+                        El correo electrónico analizado no fue modificado, alterado
+                        ni fabricado.
+                      </li>
+                      <li>
+                        Autorizo el uso de este informe como documento de respaldo
+                        para la denuncia correspondiente ante la autoridad
+                        destinataria.
+                      </li>
+                      <li>
+                        Asumo plena responsabilidad civil y penal por la veracidad
+                        del contenido denunciado.
+                      </li>
+                      <li>
+                        Entiendo que SpamShield AI es una herramienta de apoyo
+                        técnico y no constituye prueba pericial oficial.
+                      </li>
+                      <li>
+                        El análisis fue realizado mediante un sistema experto
+                        automatizado que evalúa indicadores técnicos de amenaza.
+                      </li>
+                      <li>
+                        Autorizo a las autoridades a verificar la autenticidad de
+                        este informe mediante el hash de integridad incluido.
+                      </li>
+                    </ol>
+                    <p className="mt-3 text-muted-foreground">
+                      <strong>Base Legal:</strong> Ley 21.663 (Marco de
+                      Ciberseguridad), Ley 21.459 (Delitos Informáticos — Art. 211B
+                      phishing), Ley 21.719 (Protección de Datos Personales), Art.
+                      210 Código Penal (falsa declaración).
+                    </p>
+                    <p className="mt-2 text-muted-foreground">
+                      Firma del Denunciante: ___________________________
+                    </p>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label
+                      htmlFor="off-aceptar"
+                      className="flex items-start gap-2.5 cursor-pointer rounded-lg border border-border p-3 hover:bg-muted/50 transition-colors"
+                    >
+                      <Checkbox
+                        id="off-aceptar"
+                        checked={officialReportData.aceptaDeclaracion}
+                        onCheckedChange={(v) =>
+                          setOfficialReportData((p) => ({
+                            ...p,
+                            aceptaDeclaracion: v as boolean,
+                          }))
+                        }
+                        className="mt-0.5"
+                      />
+                      <span className="text-sm leading-relaxed">
+                        He leído y acepto la declaración jurada de
+                        responsabilidad
+                      </span>
+                    </Label>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <Label htmlFor="off-firma">
+                          Firma digital (escribe tu nombre completo){' '}
+                          <span className="text-red-500">*</span>
+                        </Label>
+                        <Input
+                          id="off-firma"
+                          value={officialReportData.firmaDigital}
+                          onChange={(e) =>
+                            setOfficialReportData((p) => ({
+                              ...p,
+                              firmaDigital: e.target.value,
+                            }))
+                          }
+                          placeholder="Escribe tu nombre completo como firma"
+                          className="italic"
+                          aria-required="true"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Equivale a firma manuscrita conforme a la Ley 19.799.
+                        </p>
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label htmlFor="off-fecha">Fecha de la declaración</Label>
+                        <Input
+                          id="off-fecha"
+                          type="date"
+                          value={officialReportData.fecha}
+                          onChange={(e) =>
+                            setOfficialReportData((p) => ({
+                              ...p,
+                              fecha: e.target.value,
+                            }))
+                          }
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between pt-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setOfficialStep(2)}
+                      disabled={isGeneratingOfficial}
+                      className="gap-2"
+                    >
+                      <ChevronLeft className="size-4" />
+                      Atrás
+                    </Button>
+                    <Button
+                      onClick={() => setOfficialStep(4)}
+                      disabled={!officialStep3Valid}
+                      className="gap-2 bg-emerald-600 hover:bg-emerald-500 text-white"
+                    >
+                      Siguiente
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+
+              {/* ============ STEP 4: REVIEW + GENERATE ============ */}
+              {officialStep === 4 && (
+                <motion.div
+                  key="step4"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-4"
+                >
+                  <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    <Stamp className="size-4" />
+                    Revisión y Generación
+                  </div>
+
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-2 text-sm">
+                    <div className="grid grid-cols-3 gap-2 pb-2 border-b border-emerald-500/20">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          Denunciante
+                        </p>
+                        <p className="font-medium text-foreground">
+                          {officialReportData.nombre}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          RUT
+                        </p>
+                        <p className="font-mono font-medium text-foreground">
+                          {officialReportData.rut}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          Email
+                        </p>
+                        <p className="font-medium text-foreground break-all">
+                          {officialReportData.email}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 pb-2 border-b border-emerald-500/20">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          Autoridad
+                        </p>
+                        <p className="font-medium text-foreground">
+                          {officialReportData.autoridad === 'pdi' && 'PDI — BRICIB'}
+                          {officialReportData.autoridad === 'carabineros' &&
+                            'Carabineros de Chile'}
+                          {officialReportData.autoridad === 'anci' &&
+                            'ANCI / CSIRT Nacional'}
+                          {officialReportData.autoridad === 'fiscalia' &&
+                            'Fiscalía de Chile'}
+                          {officialReportData.autoridad === 'todas' &&
+                            'Denuncia Universal'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          Relación
+                        </p>
+                        <p className="font-medium text-foreground">
+                          {officialReportData.relacion}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          Fecha
+                        </p>
+                        <p className="font-medium text-foreground">
+                          {new Date(officialReportData.fecha).toLocaleDateString(
+                            'es-CL',
+                            {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                            }
+                          )}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                          Firma digital
+                        </p>
+                        <p className="font-medium text-foreground italic">
+                          {officialReportData.firmaDigital}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-900 dark:text-amber-100 leading-relaxed">
+                    <p className="flex items-start gap-2">
+                      <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                      <span>
+                        Al generar, se creará un documento oficial con número de
+                        caso único (formato <span className="font-mono">SSA-YYYY-NNNNNN</span>),
+                        hash de integridad SHA-256 y tu firma digital. Los datos
+                        personales <strong>no se almacenan</strong> en la base de
+                        datos; sólo se incluyen en el PDF generado.
+                      </span>
+                    </p>
+                  </div>
+
+                  <div className="flex justify-between pt-2">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setOfficialStep(3)}
+                      disabled={isGeneratingOfficial}
+                      className="gap-2"
+                    >
+                      <ChevronLeft className="size-4" />
+                      Atrás
+                    </Button>
+                    <Button
+                      onClick={handleGenerateOfficialReport}
+                      disabled={
+                        !officialStep1Valid ||
+                        !officialStep3Valid ||
+                        isGeneratingOfficial
+                      }
+                      className="gap-2 bg-emerald-700 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-700/20"
+                    >
+                      {isGeneratingOfficial ? (
+                        <>
+                          <Loader2 className="size-4 animate-spin" />
+                          Generando...
+                        </>
+                      ) : (
+                        <>
+                          <FileText className="size-4" />
+                          Generar Informe Oficial
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </DialogContent>
       </Dialog>
