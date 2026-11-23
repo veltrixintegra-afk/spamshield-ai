@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { db } from '@/lib/db'
 
 export async function POST(request: NextRequest) {
@@ -63,6 +64,27 @@ export async function POST(request: NextRequest) {
 
     const reportId = scan.id.substring(0, 12).toUpperCase()
 
+    // ── Hash de Integridad SHA-256 ──
+    // Calculado sobre el contenido del correo + metadatos del analisis
+    // para garantizar que el informe no ha sido alterado (cadena de custodia).
+    const integrityPayload = JSON.stringify({
+      scanId: scan.id,
+      emailBody: scan.emailBody,
+      senderEmail: scan.senderEmail,
+      senderName: scan.senderName,
+      subject: scan.subject,
+      isSpam: scan.isSpam,
+      spamScore: scan.spamScore,
+      isAiGenerated: scan.isAiGenerated,
+      aiConfidence: scan.aiConfidence,
+      threatType: scan.threatType,
+      createdAt: scan.createdAt.toISOString(),
+    })
+    const integrityHash = crypto
+      .createHash('sha256')
+      .update(integrityPayload, 'utf8')
+      .digest('hex')
+
     const htmlReport = generateReportHTML({
       scanId: scan.id,
       reportId,
@@ -87,6 +109,7 @@ export async function POST(request: NextRequest) {
       detailedAnalysis: analysisData.detailedAnalysis || 'No disponible',
       recommendations: analysisData.recommendations || 'No disponibles',
       emailBody: scan.emailBody,
+      integrityHash,
     })
 
     await db.emailScan.update({
@@ -165,6 +188,7 @@ interface ReportData {
   detailedAnalysis: string
   recommendations: string
   emailBody: string
+  integrityHash: string
 }
 
 /* ============================================================
@@ -803,6 +827,156 @@ function generateReportHTML(d: ReportData): string {
     .print-bar { display: none; }
     .page { min-height: auto; }
   }
+
+  /* ── DENUNCIANTE / FILL-IN FIELDS ── */
+  .denunciante-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px 28px;
+    margin-top: 8px;
+  }
+  .denunciante-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .denunciante-label {
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 600;
+  }
+  .denunciante-line {
+    border-bottom: 1px solid #9ca3af;
+    height: 22px;
+  }
+  .denunciante-note {
+    font-size: 10px;
+    color: #9ca3af;
+    margin-top: 14px;
+    font-style: italic;
+  }
+
+  /* ── DECLARACION DE VERACIDAD ── */
+  .declaracion-box {
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    padding: 20px 24px;
+    background: #f9fafb;
+    margin-top: 8px;
+  }
+  .declaracion-row {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+  .declaracion-check {
+    width: 18px;
+    height: 18px;
+    border: 2px solid #374151;
+    border-radius: 3px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+  .declaracion-text {
+    font-size: 12px;
+    color: #1f2937;
+    line-height: 1.7;
+  }
+  .declaracion-signature-row {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 40px;
+    margin-top: 24px;
+  }
+  .signature-field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .signature-line {
+    border-bottom: 1px solid #374151;
+    height: 30px;
+  }
+  .signature-caption {
+    font-size: 10px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 600;
+  }
+
+  /* ── CLAUSULA LEGAL ── */
+  .legal-clause {
+    background: #fffbeb;
+    border: 1px solid #fde68a;
+    border-left: 4px solid #d97706;
+    border-radius: 8px;
+    padding: 18px 22px;
+    margin-top: 8px;
+  }
+  .legal-clause-title {
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #92400e;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .legal-clause-text {
+    font-size: 10.5px;
+    color: #4b3613;
+    line-height: 1.7;
+    text-align: justify;
+  }
+  .legal-clause-laws {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+  }
+  .legal-clause-law {
+    display: inline-block;
+    background: #fef3c7;
+    border: 1px solid #fcd34d;
+    color: #92400e;
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+
+  /* ── INTEGRITY HASH ── */
+  .integrity-box {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 8px;
+  }
+  .integrity-label {
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #6b7280;
+    font-weight: 600;
+  }
+  .integrity-hash {
+    font-family: 'Courier New', monospace;
+    font-size: 10px;
+    color: #374151;
+    word-break: break-all;
+    background: #f3f4f6;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #e5e7eb;
+  }
+  .integrity-note {
+    font-size: 9px;
+    color: #9ca3af;
+    font-style: italic;
+  }
 </style>
 </head>
 <body>
@@ -863,7 +1037,7 @@ function generateReportHTML(d: ReportData): string {
   </div>
 
   <div class="cover-footer">
-    <span class="cover-footer-text">SpamShield AI © ${new Date().getFullYear()} — Herramienta profesional de ciberseguridad</span>
+    <span class="cover-footer-text">SpamShield AI © ${new Date().getFullYear()} — Herramienta profesional de ciberseguridad — Hash de Integridad: ${d.integrityHash.substring(0, 16)}…</span>
     <span class="cover-footer-id">${d.reportId}</span>
   </div>
 </div>
@@ -933,6 +1107,37 @@ function generateReportHTML(d: ReportData): string {
     <div class="md-content">
       <p class="md-p">${escapeHtml(d.summary)}</p>
     </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:#3b82f620;color:#3b82f6">D</div>
+      <div class="section-title">Datos del Denunciante (Opcional)</div>
+    </div>
+    <div class="section-divider"></div>
+    <div class="denunciante-grid">
+      <div class="denunciante-field">
+        <span class="denunciante-label">Nombre completo</span>
+        <div class="denunciante-line"></div>
+      </div>
+      <div class="denunciante-field">
+        <span class="denunciante-label">RUT</span>
+        <div class="denunciante-line"></div>
+      </div>
+      <div class="denunciante-field">
+        <span class="denunciante-label">Contacto (email / teléfono)</span>
+        <div class="denunciante-line"></div>
+      </div>
+      <div class="denunciante-field">
+        <span class="denunciante-label">Relación con el incidente</span>
+        <div class="denunciante-line"></div>
+      </div>
+    </div>
+    <p class="denunciante-note">
+      Campos opcionales. Completar solo si este informe será presentado como
+      denuncia formal ante las autoridades competentes (CSIRT Nacional, BRICIB-PDI
+      o Fiscalía de Chile).
+    </p>
   </div>
 
   <div class="page-footer">
@@ -1087,8 +1292,81 @@ function generateReportHTML(d: ReportData): string {
   </div>
   ` : ''}
 
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:#37415120;color:#374151">V</div>
+      <div class="section-title">Declaración de Veracidad</div>
+    </div>
+    <div class="section-divider"></div>
+    <div class="declaracion-box">
+      <div class="declaracion-row">
+        <div class="declaracion-check"></div>
+        <p class="declaracion-text">
+          Declaro bajo fe que la información contenida en este informe es
+          verídica y que el correo analizado fue recibido/interceptado de
+          manera legítima.
+        </p>
+      </div>
+      <div class="declaracion-signature-row">
+        <div class="signature-field">
+          <div class="signature-line"></div>
+          <span class="signature-caption">Firma del Denunciante</span>
+        </div>
+        <div class="signature-field">
+          <div class="signature-line"></div>
+          <span class="signature-caption">Fecha (DD / MM / AAAA)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:#d9770620;color:#d97706">L</div>
+      <div class="section-title">Cláusula Legal de Limitación de Responsabilidad</div>
+    </div>
+    <div class="section-divider"></div>
+    <div class="legal-clause">
+      <div class="legal-clause-title">Aviso Legal</div>
+      <p class="legal-clause-text">
+        Este informe es generado automáticamente por el sistema experto
+        SpamShield AI y constituye una herramienta de apoyo técnico para la
+        identificación de indicadores de amenaza en correos electrónicos. No
+        reemplaza el análisis pericial oficial realizado por autoridades
+        competentes. Para denuncias formales, contacte a CSIRT Nacional
+        (csirt.gob.cl), BRICIB-PDI (pdi.cl) o Fiscalía de Chile
+        (fiscaliedeley.cl). El contenido de este informe se ampara en la Ley
+        21.663 (Marco de Ciberseguridad), Ley 21.459 (Delitos Informáticos) y
+        Ley 21.719 (Protección de Datos Personales).
+      </p>
+      <div class="legal-clause-laws">
+        <span class="legal-clause-law">Ley 21.663 — Marco de Ciberseguridad</span>
+        <span class="legal-clause-law">Ley 21.459 — Delitos Informáticos</span>
+        <span class="legal-clause-law">Ley 21.719 — Protección de Datos Personales</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">
+      <div class="section-icon" style="background:#0ea5e920;color:#0ea5e9">#</div>
+      <div class="section-title">Hash de Integridad</div>
+    </div>
+    <div class="section-divider"></div>
+    <div class="integrity-box">
+      <span class="integrity-label">SHA-256 (contenido + metadatos)</span>
+      <div class="integrity-hash">${d.integrityHash}</div>
+      <span class="integrity-note">
+        Hash criptográfico calculado sobre el contenido del correo y los
+        metadatos del análisis al momento de la generación. Permite verificar
+        que el informe no ha sido modificado posteriormente (cadena de
+        custodia digital).
+      </span>
+    </div>
+  </div>
+
   <div class="page-footer">
-    <span>SpamShield AI — Informe Forense ${d.reportId} — ${d.dateStr}</span>
+    <span>SpamShield AI — Informe Forense ${d.reportId} — ${d.dateStr} — Hash de Integridad: ${d.integrityHash.substring(0, 24)}…</span>
     <span>Página 5</span>
   </div>
 </div>

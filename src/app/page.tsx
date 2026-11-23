@@ -61,6 +61,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { Skeleton } from '@/components/ui/skeleton'
+import { Checkbox } from '@/components/ui/checkbox'
 import {
   Shield,
   Upload,
@@ -100,6 +101,9 @@ import {
   BrainCircuit,
   Target,
   Users,
+  ExternalLink,
+  Scale,
+  Building2,
 } from 'lucide-react'
 
 /* ============================================================
@@ -373,6 +377,37 @@ function AnalysisLoadingSkeleton() {
 }
 
 /* ============================================================
+   COMPONENT: CONSENT CHECKBOX (Ley 21.719)
+   ============================================================ */
+
+interface ConsentCheckboxProps {
+  checked: boolean
+  onCheckedChange: (checked: boolean | 'indeterminate') => void
+  className?: string
+}
+
+function ConsentCheckbox({ checked, onCheckedChange, className }: ConsentCheckboxProps) {
+  return (
+    <label
+      className={`flex items-start gap-3 rounded-lg border border-border/60 bg-muted/30 px-3.5 py-3 cursor-pointer hover:bg-muted/50 transition-colors ${className ?? ''}`}
+    >
+      <Checkbox
+        checked={checked}
+        onCheckedChange={onCheckedChange}
+        className="mt-0.5"
+        id="consent-checkbox"
+        aria-label="Autorización para tratamiento de datos personales"
+      />
+      <span className="text-xs sm:text-[13px] text-muted-foreground leading-relaxed select-none">
+        Autorizo el tratamiento de los datos contenidos en este correo para fines
+        de análisis de seguridad, conforme a la{' '}
+        <span className="font-medium text-foreground">Ley 21.719 sobre Protección de Datos Personales</span>.
+      </span>
+    </label>
+  )
+}
+
+/* ============================================================
    MAIN PAGE COMPONENT
    ============================================================ */
 
@@ -394,6 +429,12 @@ export default function Home() {
   const [expandedAnalysis, setExpandedAnalysis] = useState(false)
   const [dashboard, setDashboard] = useState<DashboardData | null>(null)
   const [isLoadingDashboard, setIsLoadingDashboard] = useState(false)
+  // ── Consentimiento legal (Ley 21.719) ──
+  const [hasConsent, setHasConsent] = useState(false)
+  // ── Modal de Politica de Privacidad ──
+  const [showPrivacyDialog, setShowPrivacyDialog] = useState(false)
+  // ── Estado de eliminacion en historial ──
+  const [deletingScanId, setDeletingScanId] = useState<string | null>(null)
 
   // ── Refs ──
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -460,6 +501,12 @@ export default function Home() {
       toast.error('Por favor, ingresa el contenido del correo electrónico')
       return
     }
+    if (!hasConsent) {
+      toast.error('Debes autorizar el tratamiento de datos para continuar', {
+        description: 'Marca la casilla de consentimiento conforme a la Ley 21.719.',
+      })
+      return
+    }
 
     setIsScanning(true)
     setShowResults(true)
@@ -490,6 +537,12 @@ export default function Home() {
   const handleScanFile = async () => {
     if (!uploadedFile) {
       toast.error('Por favor, selecciona un archivo para analizar')
+      return
+    }
+    if (!hasConsent) {
+      toast.error('Debes autorizar el tratamiento de datos para continuar', {
+        description: 'Marca la casilla de consentimiento conforme a la Ley 21.719.',
+      })
       return
     }
 
@@ -607,6 +660,12 @@ export default function Home() {
 
   // ── OAuth connect handlers (UI-only) ──
   const handleConnectProvider = (provider: string) => {
+    if (!hasConsent) {
+      toast.error('Debes autorizar el tratamiento de datos para continuar', {
+        description: 'Marca la casilla de consentimiento conforme a la Ley 21.719.',
+      })
+      return
+    }
     toast.info('Funcionalidad de OAuth en desarrollo', {
       description: `La conexión con ${provider} estará disponible pronto.`,
       duration: 4000,
@@ -629,6 +688,33 @@ export default function Home() {
       hour: '2-digit',
       minute: '2-digit',
     })
+  }
+
+  // ── API: Delete single scan (derecho ARCO - cancelación) ──
+  const handleDeleteScan = async (scanId: string) => {
+    setDeletingScanId(scanId)
+    try {
+      const res = await fetch('/api/delete-scan', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scanId }),
+      })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        throw new Error(err.error || 'Error al eliminar')
+      }
+      toast.success('Análisis eliminado permanentemente')
+      // Si el resultado visible corresponde al eliminado, limpiar la vista
+      if (scanResult?.id === scanId) {
+        setShowResults(false)
+        setScanResult(null)
+      }
+      loadHistory()
+    } catch {
+      toast.error('No se pudo eliminar el análisis')
+    } finally {
+      setDeletingScanId(null)
+    }
   }
 
   /* ============================================================
@@ -1217,6 +1303,27 @@ export default function Home() {
                 </p>
               </div>
 
+              {/* ── Disclaimer de Limitación de Responsabilidad ── */}
+              <motion.div
+                variants={fadeIn}
+                className="rounded-xl border border-amber-300/60 dark:border-amber-500/30 bg-amber-50 dark:bg-amber-500/10 px-4 py-3 sm:px-5 sm:py-4"
+                role="alert"
+                aria-live="polite"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="flex items-center justify-center size-8 shrink-0 rounded-lg bg-amber-100 dark:bg-amber-500/20">
+                    <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs sm:text-sm text-amber-900 dark:text-amber-100 leading-relaxed">
+                      <strong className="font-semibold">SpamShield AI es una herramienta de apoyo técnico.</strong>{' '}
+                      Los resultados no constituyen prueba pericial oficial. Para denuncias formales, contacte a las
+                      autoridades competentes.
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+
               <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full max-w-4xl mx-auto">
                 <TabsList className="w-full grid grid-cols-3 h-auto p-1">
                   <TabsTrigger value="texto" className="gap-1.5 py-2.5 text-xs sm:text-sm">
@@ -1255,6 +1362,13 @@ export default function Home() {
                         value={emailContent}
                         onChange={(e) => setEmailContent(e.target.value)}
                       />
+
+                      {/* Consentimiento legal (Ley 21.719) */}
+                      <ConsentCheckbox
+                        checked={hasConsent}
+                        onCheckedChange={(v) => setHasConsent(v as boolean)}
+                      />
+
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                         <p className="text-xs text-muted-foreground">
                           {emailContent.length > 0
@@ -1263,7 +1377,7 @@ export default function Home() {
                         </p>
                         <Button
                           onClick={handleScanText}
-                          disabled={isScanning || !emailContent.trim()}
+                          disabled={isScanning || !emailContent.trim() || !hasConsent}
                           className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 min-w-[200px] shadow-lg shadow-emerald-500/20"
                         >
                           {isScanning ? (
@@ -1360,10 +1474,15 @@ export default function Home() {
                         )}
                       </div>
 
+                      <ConsentCheckbox
+                        checked={hasConsent}
+                        onCheckedChange={(v) => setHasConsent(v as boolean)}
+                      />
+
                       <div className="flex justify-end">
                         <Button
                           onClick={handleScanFile}
-                          disabled={isScanning || !uploadedFile}
+                          disabled={isScanning || !uploadedFile || !hasConsent}
                           className="bg-emerald-600 hover:bg-emerald-500 text-white gap-2 min-w-[200px] shadow-lg shadow-emerald-500/20"
                         >
                           {isScanning ? (
@@ -1405,8 +1524,9 @@ export default function Home() {
                       <CardContent className="pt-0">
                         <Button
                           variant="outline"
-                          className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 gap-2"
+                          className="w-full border-red-500/30 text-red-400 hover:bg-red-500/10 hover:text-red-300 gap-2 disabled:opacity-50"
                           onClick={() => handleConnectProvider('Gmail')}
+                          disabled={!hasConsent}
                         >
                           <Lock className="size-4" />
                           Conectar Gmail
@@ -1433,8 +1553,9 @@ export default function Home() {
                       <CardContent className="pt-0">
                         <Button
                           variant="outline"
-                          className="w-full border-sky-500/30 text-sky-400 hover:bg-sky-500/10 hover:text-sky-300 gap-2"
+                          className="w-full border-sky-500/30 text-sky-400 hover:bg-sky-500/10 hover:text-sky-300 gap-2 disabled:opacity-50"
                           onClick={() => handleConnectProvider('Outlook')}
+                          disabled={!hasConsent}
                         >
                           <Lock className="size-4" />
                           Conectar Outlook
@@ -1442,6 +1563,13 @@ export default function Home() {
                       </CardContent>
                     </Card>
                   </div>
+
+                  {/* Consentimiento legal (Ley 21.719) — pestaña bandeja */}
+                  <ConsentCheckbox
+                    checked={hasConsent}
+                    onCheckedChange={(v) => setHasConsent(v as boolean)}
+                    className="mt-4"
+                  />
                 </TabsContent>
               </Tabs>
             </motion.div>
@@ -1688,6 +1816,107 @@ export default function Home() {
                         </Card>
                       </motion.div>
 
+                      {/* Reportar a Autoridades */}
+                      <motion.div variants={fadeIn}>
+                        <Card className="border-border/60 bg-white/80 dark:bg-card/50 backdrop-blur-sm">
+                          <CardHeader>
+                            <CardTitle className="flex items-center gap-2 text-lg">
+                              <Scale className="size-5 text-emerald-400" />
+                              Reportar a Autoridades
+                            </CardTitle>
+                            <CardDescription>
+                              Si detectas una amenaza real, presenta el informe ante las
+                              autoridades competentes de Chile.
+                            </CardDescription>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                              {/* CSIRT Nacional */}
+                              <a
+                                href="https://csirt.gob.cl"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group flex flex-col gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4 transition-all hover:border-emerald-500/60 hover:bg-emerald-500/10 hover:shadow-md hover:shadow-emerald-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center justify-center size-10 rounded-lg bg-emerald-500/10 text-emerald-500">
+                                    <Shield className="size-5" />
+                                  </div>
+                                  <ExternalLink className="size-4 text-emerald-500/60 group-hover:text-emerald-500 transition-colors" />
+                                </div>
+                                <div className="space-y-1">
+                                  <h4 className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
+                                    CSIRT Nacional
+                                  </h4>
+                                  <p className="text-xs text-muted-foreground leading-relaxed">
+                                    Equipo de Respuesta ante Incidentes de Seguridad Informática.
+                                    Reporta incidentes cibernéticos para coordinación nacional.
+                                  </p>
+                                  <span className="text-[11px] font-mono text-emerald-500/80">
+                                    csirt.gob.cl
+                                  </span>
+                                </div>
+                              </a>
+
+                              {/* BRICIB / PDI */}
+                              <a
+                                href="https://www.pdi.cl"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group flex flex-col gap-2 rounded-xl border border-red-500/30 bg-red-500/5 p-4 transition-all hover:border-red-500/60 hover:bg-red-500/10 hover:shadow-md hover:shadow-red-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center justify-center size-10 rounded-lg bg-red-500/10 text-red-500">
+                                    <ShieldAlert className="size-5" />
+                                  </div>
+                                  <ExternalLink className="size-4 text-red-500/60 group-hover:text-red-500 transition-colors" />
+                                </div>
+                                <div className="space-y-1">
+                                  <h4 className="text-sm font-semibold text-red-600 dark:text-red-400">
+                                    BRICIB / PDI
+                                  </h4>
+                                  <p className="text-xs text-muted-foreground leading-relaxed">
+                                    Brigada Investigadora del Ciberdelito de la PDI.
+                                    Denuncia delitos informáticos, phishing y estafas
+                                    electrónicas.
+                                  </p>
+                                  <span className="text-[11px] font-mono text-red-500/80">
+                                    pdi.cl
+                                  </span>
+                                </div>
+                              </a>
+
+                              {/* Fiscalía de Chile */}
+                              <a
+                                href="https://www.fiscaliedeley.cl"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="group flex flex-col gap-2 rounded-xl border border-sky-500/30 bg-sky-500/5 p-4 transition-all hover:border-sky-500/60 hover:bg-sky-500/10 hover:shadow-md hover:shadow-sky-500/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500/40"
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center justify-center size-10 rounded-lg bg-sky-500/10 text-sky-500">
+                                    <FileText className="size-5" />
+                                  </div>
+                                  <ExternalLink className="size-4 text-sky-500/60 group-hover:text-sky-500 transition-colors" />
+                                </div>
+                                <div className="space-y-1">
+                                  <h4 className="text-sm font-semibold text-sky-600 dark:text-sky-400">
+                                    Fiscalía de Chile
+                                  </h4>
+                                  <p className="text-xs text-muted-foreground leading-relaxed">
+                                    Ministerio Público. Inicia denuncias penales formales
+                                    por delitos informáticos conforme a la Ley 21.459.
+                                  </p>
+                                  <span className="text-[11px] font-mono text-sky-500/80">
+                                    fiscaliedeley.cl
+                                  </span>
+                                </div>
+                              </a>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+
                       {/* Action Buttons */}
                       <motion.div variants={fadeIn} className="flex flex-col sm:flex-row gap-3 justify-center">
                         <Button
@@ -1739,6 +1968,10 @@ export default function Home() {
                   </h2>
                   <p className="text-muted-foreground text-sm">
                     Registro de todos los correos analizados
+                  </p>
+                  <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="size-3 text-amber-500" />
+                    Los análisis se conservan por 90 días según nuestra política de retención (Ley 21.719).
                   </p>
                 </div>
                 <Button
@@ -1901,6 +2134,30 @@ export default function Home() {
                                         </TooltipContent>
                                       </Tooltip>
                                     </TooltipProvider>
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="size-8 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                                            onClick={() => handleDeleteScan(entry.id)}
+                                            disabled={deletingScanId === entry.id}
+                                            aria-label="Eliminar análisis"
+                                          >
+                                            {deletingScanId === entry.id ? (
+                                              <Loader2 className="size-3.5 animate-spin" />
+                                            ) : (
+                                              <Trash2 className="size-3.5" />
+                                            )}
+                                            <span className="sr-only">Eliminar análisis</span>
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>
+                                          <p>Eliminar permanentemente</p>
+                                        </TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
                                   </div>
                                 </TableCell>
                               </TableRow>
@@ -1933,12 +2190,13 @@ export default function Home() {
 
             {/* Center: Links */}
             <nav className="flex items-center gap-4 sm:gap-6">
-              <a
-                href="#"
-                className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+              <button
+                type="button"
+                onClick={() => setShowPrivacyDialog(true)}
+                className="text-xs text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
               >
-                Privacidad
-              </a>
+                Política de Privacidad
+              </button>
               <a
                 href="#"
                 className="text-xs text-muted-foreground hover:text-foreground transition-colors"
@@ -1987,6 +2245,166 @@ export default function Home() {
           </div>
         </div>
       </footer>
+
+      {/* ============================================================
+          PRIVACY POLICY MODAL (Ley 21.719)
+          ============================================================ */}
+      <Dialog open={showPrivacyDialog} onOpenChange={setShowPrivacyDialog}>
+        <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Shield className="size-5 text-emerald-400" />
+              Política de Privacidad
+            </DialogTitle>
+            <DialogDescription>
+              Tratamiento de datos personales conforme a la Ley 21.719 sobre
+              Protección de Datos Personales de Chile.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-5 mt-4 text-sm leading-relaxed text-muted-foreground">
+            {/* Datos recopilados */}
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <Building2 className="size-4 text-emerald-400" />
+                1. Datos Recopilados
+              </h3>
+              <p>
+                SpamShield AI recopila exclusivamente la información necesaria para
+                realizar el análisis forense de seguridad cibernética:
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-xs">
+                <li>
+                  <strong className="text-foreground">Contenido del correo:</strong> el texto
+                  completo del correo electrónico analizado (cuerpo, encabezados y adjuntos
+                  en formato de texto).
+                </li>
+                <li>
+                  <strong className="text-foreground">Metadatos:</strong> datos del remitente
+                  (nombre y dirección de correo), asunto, fecha de recepción y ruta del
+                  mensaje.
+                </li>
+                <li>
+                  <strong className="text-foreground">Resultados del análisis:</strong>{' '}
+                  veredicto, puntuación de spam, tipo de amenaza detectada, probabilidad de
+                  contenido generado por IA y recomendaciones generadas.
+                </li>
+              </ul>
+            </section>
+
+            {/* Finalidad */}
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <Target className="size-4 text-emerald-400" />
+                2. Finalidad del Tratamiento
+              </h3>
+              <p>
+                Los datos recopilados se utilizan única y exclusivamente para la
+                realización de <strong className="text-foreground">análisis forense de
+                seguridad cibernética</strong>, incluyendo la detección de spam, phishing,
+                voiceship, spoofing, malware e ingeniería social, así como la
+                identificación de contenido generado por inteligencia artificial y la
+                generación de informes técnicos de apoyo a la investigación.
+              </p>
+            </section>
+
+            {/* Base legal */}
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <Scale className="size-4 text-emerald-400" />
+                3. Base Legal
+              </h3>
+              <p>
+                El tratamiento de datos personales se realiza al amparo de la{' '}
+                <strong className="text-foreground">Ley 21.719 sobre Protección de Datos
+                Personales</strong> de Chile, así como en el marco de la Ley 21.663 (Marco
+                Nacional de Ciberseguridad) y la Ley 21.459 (Delitos Informáticos). La base
+                jurídica es el consentimiento explícito del titular de los datos, prestado
+                mediante la casilla de autorización habilitada en cada formulario de
+                análisis.
+              </p>
+            </section>
+
+            {/* Retención */}
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <Clock className="size-4 text-emerald-400" />
+                4. Retención y Eliminación
+              </h3>
+              <p>
+                Los análisis y los datos asociados se conservan por un período máximo de{' '}
+                <strong className="text-foreground">90 días</strong> contados desde su fecha
+                de creación. Transcurrido este plazo, los registros son eliminados
+                automáticamente de forma permanente de nuestros sistemas. El titular puede
+                solicitar la eliminación anticipada en cualquier momento ejerciendo su
+                derecho de cancelación.
+              </p>
+            </section>
+
+            {/* Derechos ARCO */}
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <ShieldCheck className="size-4 text-emerald-400" />
+                5. Derechos ARCO
+              </h3>
+              <p>
+                Conforme a la Ley 21.719, el titular de los datos personales puede ejercer
+                en cualquier momento los siguientes derechos:
+              </p>
+              <ul className="list-disc pl-5 space-y-1 text-xs">
+                <li>
+                  <strong className="text-foreground">Acceso:</strong> conocer qué datos
+                  personales suyos están siendo tratados.
+                </li>
+                <li>
+                  <strong className="text-foreground">Rectificación:</strong> solicitar la
+                  corrección de datos inexactos o incompletos.
+                </li>
+                <li>
+                  <strong className="text-foreground">Cancelación:</strong> solicitar la
+                  eliminación definitiva de los datos personales.
+                </li>
+                <li>
+                  <strong className="text-foreground">Oposición:</strong> oponerse al
+                  tratamiento de sus datos por motivos legítimos.
+                </li>
+              </ul>
+            </section>
+
+            {/* Contacto */}
+            <section className="space-y-2">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-foreground">
+                <Mail className="size-4 text-emerald-400" />
+                6. Contacto para Ejercicio de Derechos
+              </h3>
+              <p>
+                Para ejercer cualquiera de los derechos ARCO, o para consultas relacionadas
+                con el tratamiento de datos personales, el titular podrá contactar a través
+                del correo electrónico{' '}
+                <a
+                  href="mailto:privacidad@spamshield.cl"
+                  className="text-emerald-500 underline underline-offset-2"
+                >
+                  privacidad@spamshield.cl
+                </a>
+                . Las solicitudes serán respondidas dentro del plazo máximo de 30 días
+                hábiles establecido por la normativa vigente.
+              </p>
+            </section>
+
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 px-4 py-3">
+              <p className="text-xs text-amber-900 dark:text-amber-100 leading-relaxed">
+                Esta política puede ser actualizada para reflejar cambios en la legislación
+                chilena o en las prácticas de tratamiento de datos. La fecha de última
+                actualización se indica a continuación.
+              </p>
+              <p className="text-[11px] text-muted-foreground mt-2">
+                Última actualización: {new Date().toLocaleDateString('es-CL', { year: 'numeric', month: 'long', day: 'numeric' })}
+              </p>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
